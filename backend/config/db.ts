@@ -81,11 +81,13 @@ function setupSqlite() {
     );
   `);
 
-  // Seed default admin if missing
+  // Seed default users if missing (matches industrial DB sample credentials)
   const user = sqliteDb.prepare("SELECT * FROM users WHERE username = ?").get("admin");
   if (!user) {
-    sqliteDb.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)")
-      .run("admin", "$2a$10$Xm57Xf9.f9y9y9y9y9y9yeXm57Xf9.f9y9y9y9y9y9y", "admin");
+    const insertUser = sqliteDb.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)");
+    insertUser.run("admin", "admin123", "admin");
+    insertUser.run("operator", "operator123", "operator");
+    insertUser.run("viewer", "viewer123", "viewer");
   }
 
   // Seed initial cameras if empty
