@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer } from "http";
-import { Server } from "socket.io";
+import { Server } from "../frontend/node_modules/socket.io/dist/index.js";
 import cors from "cors";
 import dotenv from "dotenv";
 

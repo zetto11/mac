@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt from "../../frontend/node_modules/jsonwebtoken/index.js";
 import { db } from "../config/db";
 
 const JWT_SECRET = process.env.JWT_SECRET || "cctv-secure-secret-2024";

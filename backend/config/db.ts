@@ -1,5 +1,5 @@
 import mysql from "mysql2/promise";
-import Database from "better-sqlite3";
+import Database from "../../frontend/node_modules/better-sqlite3/lib/index.js";
 import dotenv from "dotenv";
 
 dotenv.config();

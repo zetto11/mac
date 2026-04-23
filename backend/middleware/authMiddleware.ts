@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import jwt from "../../frontend/node_modules/jsonwebtoken/index.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "cctv-secure-secret-2024";
 
