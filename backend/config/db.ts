@@ -1,5 +1,5 @@
 import mysql from "mysql2/promise";
-import Database from "better-sqlite3";
+import Database from "../../frontend/node_modules/better-sqlite3/lib/index.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -12,7 +12,6 @@ const dbConfig = {
   port: parseInt(process.env.DB_PORT || "3306"),
 };
 
-// Handle Pool separately for MySQL
 export let pool: any = null;
 let sqliteDb: any = null;
 let isUsingSqlite = false;
@@ -29,106 +28,96 @@ export async function connectToDatabase() {
     console.warn(`[DB] MySQL Failed (${err.code}). Activating SQLite Fallback...`);
     isUsingSqlite = true;
     setupSqlite();
-    return true; // Return true because we are "connected" to SQLite now
+    return true;
   }
 }
 
 function setupSqlite() {
   sqliteDb = new Database("cctv_fallback.db");
-  
-  // Create schema if it's the first time
+
   sqliteDb.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT DEFAULT 'operator'
+      role TEXT NOT NULL DEFAULT 'viewer',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS cameras (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       zone TEXT NOT NULL,
-      ip_simulated TEXT,
+      ip_simulated TEXT NOT NULL,
       status TEXT DEFAULT 'online',
       is_blocked INTEGER DEFAULT 0,
-      last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      lat REAL,
-      lng REAL
+      last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS access_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      camera_id INTEGER,
+      action TEXT NOT NULL,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
       severity TEXT NOT NULL,
-      description TEXT,
-      explanation TEXT,
-      affected_entity TEXT,
-      is_acknowledged INTEGER DEFAULT 0,
-      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS access_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
+      description TEXT NOT NULL,
       camera_id INTEGER,
-      action TEXT NOT NULL,
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE TABLE IF NOT EXISTS access_points (
+    CREATE TABLE IF NOT EXISTS anomalies (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      status TEXT DEFAULT 'online',
-      lat REAL,
-      lng REAL
+      type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS system_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      user_id INTEGER,
+      timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  // Seed default admin if missing
   const user = sqliteDb.prepare("SELECT * FROM users WHERE username = ?").get("admin");
   if (!user) {
-    sqliteDb.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)")
-      .run("admin", "$2a$10$Xm57Xf9.f9y9y9y9y9y9yeXm57Xf9.f9y9y9y9y9y9y", "admin");
+    const insertUser = sqliteDb.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)");
+    insertUser.run("admin", "admin123", "admin");
+    insertUser.run("operator", "operator123", "operator");
+    insertUser.run("viewer", "viewer123", "viewer");
   }
 
-  // Seed initial cameras if empty
   const cameraCount = sqliteDb.prepare("SELECT COUNT(*) as count FROM cameras").get().count;
   if (cameraCount === 0) {
     const cameras = [
-      ["Main Entrance", "Zone A", "192.168.1.10", 51.505, -0.09],
-      ["North Parking", "Zone B", "192.168.1.11", 51.506, -0.091],
-      ["Data Center", "Zone C", "192.168.1.12", 51.504, -0.089],
-      ["East Perimeter", "Zone A", "192.168.1.13", 51.507, -0.085],
-      ["Loading Dock", "Zone B", "192.168.1.14", 51.502, -0.095]
+      ["Cam_Gate_Main", "Gate", "192.168.1.101", "online", 0],
+      ["Cam_Gate_Post", "Gate", "192.168.1.102", "online", 0],
+      ["Cam_Factory_Line1", "Factory", "192.168.2.55", "online", 0],
+      ["Cam_Factory_Line2", "Factory", "192.168.2.56", "offline", 0],
+      ["Cam_Warehouse_Loading", "Warehouse", "192.168.3.10", "online", 0],
+      ["Cam_Office_ServerRoom", "Office", "192.168.4.21", "online", 1],
     ];
-    const insertCam = sqliteDb.prepare("INSERT INTO cameras (name, zone, ip_simulated, lat, lng) VALUES (?, ?, ?, ?, ?)");
-    cameras.forEach(cam => insertCam.run(...cam));
-  }
-
-  // Seed access points if empty
-  const apCount = sqliteDb.prepare("SELECT COUNT(*) as count FROM access_points").get().count;
-  if (apCount === 0) {
-    const aps = [
-      ["Node ALPHA-1", 51.505, -0.09],
-      ["Node BETA-4", 51.506, -0.091],
-      ["Gateway PRIME", 51.504, -0.089]
-    ];
-    const insertAP = sqliteDb.prepare("INSERT INTO access_points (name, lat, lng) VALUES (?, ?, ?)");
-    aps.forEach(ap => insertAP.run(...ap));
+    const insertCam = sqliteDb.prepare(
+      "INSERT INTO cameras (name, zone, ip_simulated, status, is_blocked) VALUES (?, ?, ?, ?, ?)"
+    );
+    cameras.forEach((cam: any[]) => insertCam.run(...cam));
   }
 }
 
-// Global query wrapper that works for both MySQL and SQLite
 export const db = {
   execute: async (query: string, params: any[] = []) => {
     if (isUsingSqlite) {
-      // Convert ? to SQLite compatible if needed (better-sqlite3 likes positional ?)
       const stmt = sqliteDb.prepare(query.replace(/CURRENT_TIMESTAMP/g, "datetime('now')"));
       if (query.toUpperCase().startsWith("SELECT")) {
         return [stmt.all(...params)];
-      } else {
-        const result = stmt.run(...params);
-        return [{ insertId: result.lastInsertRowid, affectedRows: result.changes }];
       }
-    } else {
-      return await pool.execute(query, params);
+      const result = stmt.run(...params);
+      return [{ insertId: result.lastInsertRowid, affectedRows: result.changes }];
     }
+    return await pool.execute(query, params);
   }
 };

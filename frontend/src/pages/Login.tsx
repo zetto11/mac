@@ -31,20 +31,27 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await fetch('/api/login', {
+      const payload = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
-      });
+      };
 
-      const data = await res.json();
-      if (res.ok) {
+      let res = await fetch('/api/login', payload);
+      if (res.status === 404) {
+        res = await fetch('/api/auth/login', payload);
+      }
+
+      const isJson = res.headers.get('content-type')?.includes('application/json');
+      const data = isJson ? await res.json() : null;
+
+      if (res.ok && data?.token && data?.user) {
         login(data.token, data.user);
       } else {
-        setError(data.error || 'Login failed');
+        setError(data?.error || `Login failed (HTTP ${res.status})`);
       }
     } catch (err) {
-      setError('Connection error');
+      setError('Connection error (backend unreachable)');
     } finally {
       setLoading(false);
     }
