@@ -22,7 +22,7 @@ export const logViewAction = async (req: AuthRequest, res: Response) => {
   try {
     await db.execute(
       "INSERT INTO access_logs (user_id, camera_id, action) VALUES (?, ?, ?)",
-      [req.user?.id, camera_id, "VIEW_CAMERA"]
+      [req.user?.id, camera_id, "view"]
     );
     res.json({ success: true });
   } catch (err: any) {

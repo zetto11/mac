@@ -19,7 +19,7 @@ export const blockCamera = (io: Server) => async (req: AuthRequest, res: Respons
     await db.execute("UPDATE cameras SET is_blocked = ? WHERE id = ?", [blocked ? 1 : 0, id]);
     await db.execute(
       "INSERT INTO access_logs (user_id, camera_id, action) VALUES (?, ?, ?)",
-      [req.user?.id, id, blocked ? "BLOCK_CAMERA" : "UNBLOCK_CAMERA"]
+      [req.user?.id, id, blocked ? "block" : "unblock"]
     );
 
     io.emit("camera_update", { id, is_blocked: !!blocked });

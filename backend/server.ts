@@ -76,17 +76,17 @@ async function startServer() {
           
           if (newStatus === "offline") {
             const [result]: any = await db.execute(
-              "INSERT INTO alerts (type, severity, description, explanation, affected_entity) VALUES (?, ?, ?, ?, ?)",
-              ["CAMERA_OFFLINE", "high", `Security node CAM-${cam.id} lost connectivity`, "Critical heartbeat failure detected.", `Camera ${cam.id}`]
+              "INSERT INTO alerts (type, severity, description, camera_id) VALUES (?, ?, ?, ?)",
+              ["system", "high", `Security node CAM-${cam.id} lost connectivity`, cam.id]
             );
             
             io.emit("new_alert", { 
               id: result.insertId,
-              type: "CAMERA_OFFLINE", 
+              type: "system", 
               severity: "high", 
               description: `Security node CAM-${cam.id} lost connectivity`,
               timestamp: new Date().toISOString(),
-              is_acknowledged: 0
+              is_acknowledged: false
             });
           }
         }
